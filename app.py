@@ -10,9 +10,8 @@ db = conn.cursor()
 
 db.execute("""
 CREATE TABLE IF NOT EXISTS users (
-    username TEXT,
-    password TEXT,
-    userid TEXT
+    username TEXT UNIQUE,
+    password TEXT
 )
 """)
 
@@ -32,30 +31,31 @@ def user():
     return request.cookies.get("user")
 
 
-# --- HOME ---
+# --- HOME (friends list) ---
 @app.route("/")
 def home():
     if not user():
         return """
         <h2>Login</h2>
         <form action="/login" method="POST">
-            <input name="username" placeholder="login"><br><br>
+            <input name="username" placeholder="username"><br><br>
             <input name="password" placeholder="password"><br><br>
             <button>login</button>
         </form>
         """
 
-    return f"""
-    <h2>Messenger</h2>
-    <p>You: <b>{user()}</b></p>
+    db.execute("SELECT username FROM users")
+    users = db.fetchall()
 
-    <form action="/chat">
-        <input name="to" placeholder="username">
-        <button>chat</button>
-    </form>
+    html = "<h2>Friends</h2>"
 
-    <a href="/logout">logout</a>
-    """
+    for u in users:
+        if u[0] != user():
+            html += f'<p><a href="/chat?to={u[0]}">{u[0]}</a></p>'
+
+    html += '<br><a href="/logout">logout</a>'
+
+    return f"<p>You: <b>{user()}</b></p>" + html
 
 
 # --- LOGIN ---
@@ -67,12 +67,15 @@ def login():
     db.execute("SELECT * FROM users WHERE username=?", (username,))
     u = db.fetchone()
 
-    if not u:
-        db.execute(
-            "INSERT INTO users VALUES (?, ?, ?)",
-            (username, password, username)
-        )
-        conn.commit()
+    if u:
+        if u[1] != password:
+            return "Wrong password"
+    else:
+        try:
+            db.execute("INSERT INTO users VALUES (?, ?)", (username, password))
+            conn.commit()
+        except:
+            return "❌ Username already taken"
 
     resp = make_response(redirect("/"))
     resp.set_cookie("user", username)
@@ -88,15 +91,11 @@ def chat():
     if not to:
         return redirect("/")
 
-    # check user exists
-    db.execute("SELECT * FROM users WHERE username=?", (to,))
-    if not db.fetchone():
-        return "<h2>User not found ❌</h2><a href='/'>back</a>"
-
     db.execute("""
         SELECT sender, message, time FROM messages
         WHERE (sender=? AND receiver=?)
         OR (sender=? AND receiver=?)
+        ORDER BY rowid
     """, (me, to, to, me))
 
     msgs = db.fetchall()
@@ -129,9 +128,6 @@ def send():
     to = request.form["to"]
     msg = request.form["msg"]
 
-    if not msg:
-        return redirect(f"/chat?to={to}")
-
     now = datetime.datetime.now().strftime("%H:%M")
 
     db.execute(
@@ -151,6 +147,6 @@ def logout():
     return resp
 
 
-# IMPORTANT FOR RAILWAY
+# --- RUN (Railway safe) ---
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000)
