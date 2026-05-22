@@ -1,9 +1,11 @@
 from flask import Flask, request, redirect, make_response
 import sqlite3
 import datetime
+import os
 
 app = Flask(__name__)
 
+# ---------- DATABASE ----------
 conn = sqlite3.connect("db.db", check_same_thread=False)
 db = conn.cursor()
 
@@ -26,163 +28,213 @@ CREATE TABLE IF NOT EXISTS messages (
 conn.commit()
 
 
-def user():
+# ---------- USER ----------
+def current_user():
     return request.cookies.get("user")
 
 
-# ---------------- HOME ----------------
+# ---------- HOME ----------
 @app.route("/")
 def home():
-    if not user():
+
+    if not current_user():
+
         return """
-        <h2>Login</h2>
+        <h1>💬 Messenger</h1>
+
         <form action="/login" method="POST">
+
             <input name="username" placeholder="username"><br><br>
-            <input name="password" placeholder="password"><br><br>
-            <button>login</button>
+
+            <input name="password" type="password" placeholder="password"><br><br>
+
+            <button>Login / Register</button>
+
         </form>
         """
 
-    me = user()
+    me = current_user()
 
     return f"""
     <h1>💬 Messenger</h1>
+
     <h3>Hi, {me} 👋</h3>
 
     <hr>
 
     <h2>🧑‍🤝‍🧑 Friends</h2>
+
     <a href="/friends">Open friends list</a>
 
+    <br><br>
+
     <h2>🔎 Find friend</h2>
-    <form action="/find" method="GET">
+
+    <form action="/find">
+
         <input name="q" placeholder="username">
-        <button>search</button>
+
+        <button>Find</button>
+
     </form>
 
     <br><br>
-    <a href="/logout">logout</a>
+
+    <a href="/logout">Logout</a>
     """
 
 
-# ---------------- LOGIN ----------------
+# ---------- LOGIN ----------
 @app.route("/login", methods=["POST"])
 def login():
+
     username = request.form["username"]
     password = request.form["password"]
 
-    db.execute("SELECT * FROM users WHERE username=?", (username,))
-    u = db.fetchone()
+    db.execute(
+        "SELECT * FROM users WHERE username=?",
+        (username,)
+    )
 
-    if u:
-        if u[1] != password:
-            return "Wrong password"
+    user = db.fetchone()
+
+    if user:
+
+        if user[1] != password:
+            return "❌ Wrong password"
+
     else:
+
         try:
-            db.execute("INSERT INTO users VALUES (?, ?)", (username, password))
+
+            db.execute(
+                "INSERT INTO users VALUES (?, ?)",
+                (username, password)
+            )
+
             conn.commit()
+
         except:
-            return "Username already taken"
+            return "❌ Username already exists"
 
-    resp = make_response(redirect("/"))
-    resp.set_cookie("user", username)
-    return resp
+    response = make_response(redirect("/"))
+
+    response.set_cookie("user", username)
+
+    return response
 
 
-# ---------------- FRIENDS ----------------
+# ---------- FRIENDS ----------
 @app.route("/friends")
 def friends():
-    me = user()
+
+    me = current_user()
+
     if not me:
         return redirect("/")
 
     db.execute("SELECT username FROM users")
+
     users = db.fetchall()
 
-    html = "<h2>🧑‍🤝‍🧑 Friends</h2>"
+    html = """
+    <h1>🧑‍🤝‍🧑 Friends</h1>
+    """
 
     for u in users:
-        if u[0] != me:
-            html += f'<p>👤 <a href="/chat?to={u[0]}">{u[0]}</a></p>'
 
-    html += "<br><a href='/'>⬅ back</a>"
+        username = u[0]
+
+        if username != me:
+
+            html += f"""
+            👤 <a href="/chat?to={username}">
+                {username}
+            </a><br><br>
+            """
+
+    html += '<br><a href="/">⬅ Back</a>'
 
     return html
 
 
-# ---------------- FIND ----------------
+# ---------- FIND ----------
 @app.route("/find")
 def find():
-    me = user()
+
+    me = current_user()
+
     if not me:
         return redirect("/")
 
     q = request.args.get("q")
 
-    db.execute("SELECT username FROM users WHERE username LIKE ?", (f"%{q}%",))
+    db.execute(
+        "SELECT username FROM users WHERE username LIKE ?",
+        (f"%{q}%",)
+    )
+
     results = db.fetchall()
 
     if not results:
-        return "<h3>No users found ❌</h3><a href='/'>back</a>"
+        return """
+        <h2>❌ User not found</h2>
+        <a href="/">⬅ Back</a>
+        """
 
-    html = "<h2>🔎 Results</h2>"
+    html = "<h1>🔎 Results</h1>"
 
     for r in results:
-        if r[0] != me:
-            html += f'<p>👤 <a href="/chat?to={r[0]}">{r[0]}</a></p>'
 
-    html += "<br><a href='/'>⬅ back</a>"
+        username = r[0]
+
+        if username != me:
+
+            html += f"""
+            👤 <a href="/chat?to={username}">
+                {username}
+            </a><br><br>
+            """
+
+    html += '<br><a href="/">⬅ Back</a>'
 
     return html
 
 
-# ---------------- CHAT ----------------
+# ---------- CHAT ----------
 @app.route("/chat")
 def chat():
-    me = user()
-    to = request.args.get("to")
+
+    me = current_user()
 
     if not me:
         return redirect("/")
 
-    db.execute("""
-        SELECT sender, message, time FROM messages
-        WHERE (sender=? AND receiver=?)
-        OR (sender=? AND receiver=?)
-        ORDER BY rowid
-    """, (me, to, to, me))
+    target = request.args.get("to")
 
-    msgs = db.fetchall()
+    db.execute("""
+    SELECT sender, message, time
+    FROM messages
+    WHERE
+    (sender=? AND receiver=?)
+    OR
+    (sender=? AND receiver=?)
+    ORDER BY rowid
+    """, (me, target, target, me))
+
+    messages = db.fetchall()
 
     html = ""
-    for s, m, t in msgs:
-        html += f"<div><b>{s}</b> [{t}]: {m}</div>"
+
+    for sender, msg, time in messages:
+
+        html += f"""
+        <p>
+        <b>{sender}</b>
+        [{time}]
+        : {msg}
+        </p>
+        """
 
     return f"""
-    <h2>💬 Chat with {to}</h2>
-
-    <div style="height:300px;overflow:auto;border:1px solid #ccc;padding:10px;">
-        {html}
-    </div>
-
-    <form action="/send" method="POST">
-        <input type="hidden" name="to" value="{to}">
-        <input name="msg" placeholder="message">
-        <button>send</button>
-    </form>
-
-    <br>
-    <a href="/">⬅ back</a>
-    """
-
-
-# ---------------- SEND ----------------
-@app.route("/send", methods=["POST"])
-def send():
-    me = user()
-    to = request.form["to"]
-    msg = request.form["msg"]
-
-    now = datetime.datetime.now().strftime("%H:%M")
-
-    db.execute(
+    <h1>💬 Chat with {target}</h1>
