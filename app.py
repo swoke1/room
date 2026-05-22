@@ -229,6 +229,7 @@ def find():
 
     if not results:
         html += "<p>❌ No users found</p>"
+        <a href="/">◀ Back</a>
 
     for r in results:
 
