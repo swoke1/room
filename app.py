@@ -5,6 +5,71 @@ import os
 
 app = Flask(__name__)
 
+# ---------- STYLE ----------
+STYLE = """
+<style>
+
+body{
+    background:#1e1f22;
+    color:white;
+    font-family:Arial;
+    padding:20px;
+}
+
+.card{
+    background:#2b2d31;
+    padding:20px;
+    border-radius:15px;
+    margin-bottom:20px;
+    max-width:600px;
+}
+
+input{
+    background:#1e1f22;
+    border:1px solid #555;
+    color:white;
+    padding:10px;
+    border-radius:10px;
+    width:250px;
+}
+
+button{
+    background:#5865f2;
+    color:white;
+    border:none;
+    padding:10px;
+    border-radius:10px;
+    cursor:pointer;
+}
+
+button:hover{
+    opacity:0.9;
+}
+
+a{
+    color:#58a6ff;
+    text-decoration:none;
+}
+
+.chat{
+    height:300px;
+    overflow:auto;
+    background:#1e1f22;
+    padding:10px;
+    border-radius:10px;
+}
+
+.msg{
+    background:#313338;
+    padding:10px;
+    border-radius:10px;
+    margin-bottom:10px;
+}
+
+</style>
+"""
+
+# ---------- DATABASE ----------
 conn = sqlite3.connect("db.db", check_same_thread=False)
 db = conn.cursor()
 
@@ -24,63 +89,83 @@ CREATE TABLE IF NOT EXISTS messages (
 )
 """)
 
+db.execute("""
+CREATE TABLE IF NOT EXISTS friends (
+    user1 TEXT,
+    user2 TEXT
+)
+""")
+
 conn.commit()
 
 
+# ---------- USER ----------
 def current_user():
     return request.cookies.get("user")
 
 
+# ---------- HOME ----------
 @app.route("/")
 def home():
 
     if not current_user():
 
-        return '''
-        <h1>Messenger</h1>
+        return STYLE + """
+        <div class="card">
+
+        <h1>💬 Messenger</h1>
 
         <form action="/login" method="POST">
 
             <input name="username" placeholder="username"><br><br>
 
-            <input name="password" type="password" placeholder="password"><br><br>
+            <input
+                name="password"
+                type="password"
+                placeholder="password"
+            ><br><br>
 
             <button>Login / Register</button>
 
         </form>
-        '''
+
+        </div>
+        """
 
     me = current_user()
 
-    return f'''
-    <h1>Messenger</h1>
+    return STYLE + f"""
+    <div class="card">
 
-    <h3>Hi, {me}</h3>
+    <h1>💬 Messenger</h1>
+
+    <h3>Hi, {me} 👋</h3>
 
     <hr>
 
-    <h2>Friends</h2>
-
-    <a href="/friends">Open friends list</a>
-
-    <br><br>
-
-    <h2>Find friend</h2>
+    <h2>🔎 Find Friend</h2>
 
     <form action="/find">
 
         <input name="q" placeholder="username">
 
-        <button>Find</button>
+        <button>Search</button>
 
     </form>
+
+    <br>
+
+    <a href="/friends">🧑‍🤝‍🧑 Open Friends</a>
 
     <br><br>
 
     <a href="/logout">Logout</a>
-    '''
+
+    </div>
+    """
 
 
+# ---------- LOGIN ----------
 @app.route("/login", methods=["POST"])
 def login():
 
@@ -97,7 +182,7 @@ def login():
     if user:
 
         if user[1] != password:
-            return "Wrong password"
+            return STYLE + "<div class='card'><h2>❌ Wrong password</h2></div>"
 
     else:
 
@@ -111,7 +196,7 @@ def login():
             conn.commit()
 
         except:
-            return "Username already exists"
+            return STYLE + "<div class='card'><h2>❌ Username already exists</h2></div>"
 
     response = make_response(redirect("/"))
 
@@ -120,39 +205,7 @@ def login():
     return response
 
 
-@app.route("/friends")
-def friends():
-
-    me = current_user()
-
-    if not me:
-        return redirect("/")
-
-    db.execute("SELECT username FROM users")
-
-    users = db.fetchall()
-
-    html = "<h1>Friends</h1>"
-
-    for u in users:
-
-        username = u[0]
-
-        if username != me:
-
-            html += f'''
-            <p>
-                <a href="/chat?to={username}">
-                    {username}
-                </a>
-            </p>
-            '''
-
-    html += '<br><a href="/">Back</a>'
-
-    return html
-
-
+# ---------- FIND ----------
 @app.route("/find")
 def find():
 
@@ -170,13 +223,10 @@ def find():
 
     results = db.fetchall()
 
-    if not results:
-        return '''
-        <h2>User not found</h2>
-        <a href="/">Back</a>
-        '''
+    html = STYLE + '<div class="card"><h1>🔎 Results</h1>'
 
-    html = "<h1>Results</h1>"
+    if not results:
+        html += "<p>❌ No users found</p>"
 
     for r in results:
 
@@ -184,19 +234,95 @@ def find():
 
         if username != me:
 
-            html += f'''
-            <p>
-                <a href="/chat?to={username}">
-                    {username}
-                </a>
-            </p>
-            '''
+            html += f"""
 
-    html += '<br><a href="/">Back</a>'
+            <div class="msg">
+
+            👤 {username}
+
+            <a href="/add_friend/{username}">
+                <button>Add Friend</button>
+            </a>
+
+            </div>
+            """
+        port=port
+    )
+html += '<br><a href="/">⬅ Back</a></div>'
 
     return html
 
 
+# ---------- ADD FRIEND ----------
+@app.route("/add_friend/<username>")
+def add_friend(username):
+
+    me = current_user()
+
+    if not me:
+        return redirect("/")
+
+    db.execute(
+        "SELECT * FROM friends WHERE user1=? AND user2=?",
+        (me, username)
+    )
+
+    exists = db.fetchone()
+
+    if not exists:
+
+        db.execute(
+            "INSERT INTO friends VALUES (?, ?)",
+            (me, username)
+        )
+
+        conn.commit()
+
+    return redirect("/friends")
+
+
+# ---------- FRIENDS ----------
+@app.route("/friends")
+def friends():
+
+    me = current_user()
+
+    if not me:
+        return redirect("/")
+
+    db.execute(
+        "SELECT user2 FROM friends WHERE user1=?",
+        (me,)
+    )
+
+    friends = db.fetchall()
+
+    html = STYLE + '<div class="card"><h1>🧑‍🤝‍🧑 Friends</h1>'
+
+    if not friends:
+        html += "<p>No friends yet</p>"
+
+    for f in friends:
+
+        username = f[0]
+
+        html += f"""
+
+        <div class="msg">
+
+        👤 <a href="/chat?to={username}">
+            {username}
+        </a>
+
+        </div>
+        """
+
+    html += '<br><a href="/">⬅ Back</a></div>'
+
+    return html
+
+
+# ---------- CHAT ----------
 @app.route("/chat")
 def chat():
 
@@ -223,23 +349,28 @@ def chat():
 
     for sender, msg, time in messages:
 
-        html += f'''
-        <p>
-            <b>{sender}</b>
-            [{time}]
-            : {msg}
-        </p>
-        '''
+        html += f"""
 
-    return f'''
-    <h1>Chat with {target}</h1>
+        <div class="msg">
 
-    <div style="
-        border:1px solid black;
-        height:300px;
-        overflow:auto;
-        padding:10px;
-    ">
+        <b>{sender}</b>
+
+        [{time}]
+
+        <br><br>
+
+        {msg}
+
+        </div>
+        """
+
+    return STYLE + f"""
+
+    <div class="card">
+
+    <h1>💬 {target}</h1>
+
+    <div class="chat">
 
         {html}
 
@@ -248,7 +379,8 @@ def chat():
     <br>
 
     <form action="/send" method="POST">
-    <input type="hidden" name="to" value="{target}">
+
+        <input type="hidden" name="to" value="{target}">
 
         <input name="msg" placeholder="message">
 
@@ -258,10 +390,13 @@ def chat():
 
     <br>
 
-    <a href="/">Back</a>
-    '''
+    <a href="/friends">⬅ Back</a>
+
+    </div>
+    """
 
 
+# ---------- SEND ----------
 @app.route("/send", methods=["POST"])
 def send():
 
@@ -273,6 +408,9 @@ def send():
     target = request.form["to"]
 
     msg = request.form["msg"]
+
+    if not msg:
+        return redirect(f"/chat?to={target}")
 
     now = datetime.datetime.now().strftime("%H:%M")
 
@@ -286,6 +424,7 @@ def send():
     return redirect(f"/chat?to={target}")
 
 
+# ---------- LOGOUT ----------
 @app.route("/logout")
 def logout():
 
@@ -296,6 +435,7 @@ def logout():
     return response
 
 
+# ---------- RUN ----------
 if __name__ == "__main__":
 
     port = int(os.environ.get("PORT", 8000))
