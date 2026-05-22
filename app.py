@@ -225,11 +225,21 @@ def find():
 
     results = db.fetchall()
 
-    html = STYLE + '<div class="card"><h1>🔎 Results</h1>'
-
+    # ❌ если никого нет
     if not results:
-        html += "<p>❌ No users found</p>"
-        <a href="/">◀ Back</a>
+        return STYLE + """
+        <div class="card">
+            <h2>❌ No users found</h2>
+
+            <a href="/">
+                <button>⬅ Back</button>
+            </a>
+
+        </div>
+        """
+
+    # ✅ если есть результаты
+    html = STYLE + '<div class="card"><h1>🔎 Results</h1>'
 
     for r in results:
 
@@ -238,18 +248,17 @@ def find():
         if username != me:
 
             html += f"""
-
             <div class="msg">
 
-            👤 {username}
-
-            <a href="/add_friend/{username}">
-                <button>Add Friend</button>
-            </a>
+                👤 {username}
+                <a href="/add_friend/{username}">
+                    <button>Add Friend</button>
+                </a>
 
             </div>
             """
-            html += '<br><a href="/">⬅ Back</a></div>'
+
+    html += '<br><a href="/"><button>⬅ Back</button></a></div>'
 
     return html
 
