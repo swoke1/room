@@ -258,7 +258,7 @@ def find():
             </div>
             """
 
-    html += '<br><a href="/"><button>⬅ Back</button></a></div>'
+ html += '<br><a href="/">⬅ Back</a></div>'
 
     return html
 
