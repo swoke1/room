@@ -4,7 +4,6 @@ import datetime
 
 app = Flask(__name__)
 
-# --- DB ---
 conn = sqlite3.connect("db.db", check_same_thread=False)
 db = conn.cursor()
 
@@ -31,7 +30,7 @@ def user():
     return request.cookies.get("user")
 
 
-# --- HOME (friends list) ---
+# ---------------- HOME ----------------
 @app.route("/")
 def home():
     if not user():
@@ -44,21 +43,29 @@ def home():
         </form>
         """
 
-    db.execute("SELECT username FROM users")
-    users = db.fetchall()
+    me = user()
 
-    html = "<h2>Friends</h2>"
+    return f"""
+    <h1>💬 Messenger</h1>
+    <h3>Hi, {me} 👋</h3>
 
-    for u in users:
-        if u[0] != user():
-            html += f'<p><a href="/chat?to={u[0]}">{u[0]}</a></p>'
+    <hr>
 
-    html += '<br><a href="/logout">logout</a>'
+    <h2>🧑‍🤝‍🧑 Friends</h2>
+    <a href="/friends">Open friends list</a>
 
-    return f"<p>You: <b>{user()}</b></p>" + html
+    <h2>🔎 Find friend</h2>
+    <form action="/find" method="GET">
+        <input name="q" placeholder="username">
+        <button>search</button>
+    </form>
+
+    <br><br>
+    <a href="/logout">logout</a>
+    """
 
 
-# --- LOGIN ---
+# ---------------- LOGIN ----------------
 @app.route("/login", methods=["POST"])
 def login():
     username = request.form["username"]
@@ -75,20 +82,67 @@ def login():
             db.execute("INSERT INTO users VALUES (?, ?)", (username, password))
             conn.commit()
         except:
-            return "❌ Username already taken"
+            return "Username already taken"
 
     resp = make_response(redirect("/"))
     resp.set_cookie("user", username)
     return resp
 
 
-# --- CHAT ---
+# ---------------- FRIENDS ----------------
+@app.route("/friends")
+def friends():
+    me = user()
+    if not me:
+        return redirect("/")
+
+    db.execute("SELECT username FROM users")
+    users = db.fetchall()
+
+    html = "<h2>🧑‍🤝‍🧑 Friends</h2>"
+
+    for u in users:
+        if u[0] != me:
+            html += f'<p>👤 <a href="/chat?to={u[0]}">{u[0]}</a></p>'
+
+    html += "<br><a href='/'>⬅ back</a>"
+
+    return html
+
+
+# ---------------- FIND ----------------
+@app.route("/find")
+def find():
+    me = user()
+    if not me:
+        return redirect("/")
+
+    q = request.args.get("q")
+
+    db.execute("SELECT username FROM users WHERE username LIKE ?", (f"%{q}%",))
+    results = db.fetchall()
+
+    if not results:
+        return "<h3>No users found ❌</h3><a href='/'>back</a>"
+
+    html = "<h2>🔎 Results</h2>"
+
+    for r in results:
+        if r[0] != me:
+            html += f'<p>👤 <a href="/chat?to={r[0]}">{r[0]}</a></p>'
+
+    html += "<br><a href='/'>⬅ back</a>"
+
+    return html
+
+
+# ---------------- CHAT ----------------
 @app.route("/chat")
 def chat():
     me = user()
     to = request.args.get("to")
 
-    if not to:
+    if not me:
         return redirect("/")
 
     db.execute("""
@@ -105,9 +159,9 @@ def chat():
         html += f"<div><b>{s}</b> [{t}]: {m}</div>"
 
     return f"""
-    <h2>Chat with {to}</h2>
+    <h2>💬 Chat with {to}</h2>
 
-    <div style="height:300px;overflow:auto;border:1px solid black;padding:10px;">
+    <div style="height:300px;overflow:auto;border:1px solid #ccc;padding:10px;">
         {html}
     </div>
 
@@ -117,11 +171,12 @@ def chat():
         <button>send</button>
     </form>
 
-    <a href="/">back</a>
+    <br>
+    <a href="/">⬅ back</a>
     """
 
 
-# --- SEND ---
+# ---------------- SEND ----------------
 @app.route("/send", methods=["POST"])
 def send():
     me = user()
@@ -131,22 +186,3 @@ def send():
     now = datetime.datetime.now().strftime("%H:%M")
 
     db.execute(
-        "INSERT INTO messages VALUES (?, ?, ?, ?)",
-        (me, to, msg, now)
-    )
-    conn.commit()
-
-    return redirect(f"/chat?to={to}")
-
-
-# --- LOGOUT ---
-@app.route("/logout")
-def logout():
-    resp = make_response(redirect("/"))
-    resp.set_cookie("user", "", expires=0)
-    return resp
-
-
-# --- RUN (Railway safe) ---
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8000)
