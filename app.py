@@ -155,7 +155,9 @@ def home():
 
     <br>
 
-    <a href="/friends">🧑‍🤝‍🧑 Open Friends</a>
+    <a href="/friends">
+    <button>🧑‍🤝‍🧑 Open Friends</button>
+    </a>
 
     <br><br>
 
