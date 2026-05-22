@@ -225,21 +225,13 @@ def find():
 
     results = db.fetchall()
 
-    # ❌ если никого нет
     if not results:
-        return STYLE + """
-        <div class="card">
-            <h2>❌ No users found</h2>
-
-            <a href="/">
-                <button>⬅ Back</button>
-            </a>
-
-        </div>
+        return """
+        <h2>No users found</h2>
+        <a href="/">back</a>
         """
 
-    # ✅ если есть результаты
-    html = STYLE + '<div class="card"><h1>🔎 Results</h1>'
+    html = "<h2>Results</h2>"
 
     for r in results:
 
@@ -248,20 +240,15 @@ def find():
         if username != me:
 
             html += f"""
-            <div class="msg">
-
+            <p>
                 👤 {username}
-                <a href="/add_friend/{username}">
-                    <button>Add Friend</button>
-                </a>
-
-            </div>
+                <a href="/add_friend/{username}">add friend</a>
+            </p>
             """
 
- html += '<br><a href="/">⬅ Back</a>'
+    html += '<br><a href="/">⬅ Back</a>'
 
     return html
-
 
 # ---------- ADD FRIEND ----------
 @app.route("/add_friend/<username>")
