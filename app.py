@@ -247,8 +247,9 @@ def find():
             <div class="msg">
 
                 👤 {username}
-                <a href="/add_friend/{username}">add friend</a>
-
+                <a href="/add_friend/{username}">
+    <button style="background:#58a6ff;">Add Friend</button>
+</a>
             </div>
             """
 
