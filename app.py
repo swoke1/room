@@ -246,9 +246,7 @@ def find():
 
             </div>
             """
-        port=port
-    )
-html += '<br><a href="/">⬅ Back</a></div>'
+            html += '<br><a href="/">⬅ Back</a></div>'
 
     return html
 
