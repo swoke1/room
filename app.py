@@ -514,9 +514,9 @@ def chat():
     </div>
 
     <script>
-    setInterval(() => {
+    setInterval(() => {{
         location.reload();
-    }, 3000);
+    }}, 3000);
     </script>
 
     """
