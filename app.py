@@ -503,3 +503,27 @@ def chat():
     </div>
 
     <br>
+
+    <form action="/send" method="POST">
+
+        <input type="hidden" name="to" value="{target}">
+
+        <input name="msg" placeholder="message">
+
+        <button>Send</button>
+
+    </form>
+
+    <br>
+
+    <a href="/friends">⬅ back</a>
+
+    </div>
+
+    <script>
+    setInterval(() => {{
+        location.reload();
+    }}, 3000);
+    </script>
+
+    """
