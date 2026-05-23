@@ -22,6 +22,7 @@ body{
     border-radius:15px;
     margin-bottom:20px;
     max-width:600px;
+    margin:auto;
 }
 
 input{
@@ -66,6 +67,24 @@ a{
     margin-bottom:10px;
 }
 
+@media (max-width: 600px){
+
+    input{
+        width:100%;
+        box-sizing:border-box;
+    }
+
+    button{
+        width:100%;
+        margin-top:10px;
+    }
+
+    .chat{
+        height:60vh;
+    }
+
+}
+
 </style>
 """
 
@@ -93,6 +112,13 @@ db.execute("""
 CREATE TABLE IF NOT EXISTS friends (
     user1 TEXT,
     user2 TEXT
+)
+""")
+
+db.execute("""
+CREATE TABLE IF NOT EXISTS requests (
+    sender TEXT,
+    receiver TEXT
 )
 """)
 
@@ -143,11 +169,9 @@ def home():
 
     <hr>
 
-    <h2>🔎 Find Friend</h2>
-
     <form action="/find">
 
-        <input name="q" placeholder="username">
+        <input name="q" placeholder="Find friend">
 
         <button>Search</button>
 
@@ -155,9 +179,11 @@ def home():
 
     <br>
 
-    <a href="/friends">
-    <button>🧑‍🤝‍🧑 Open Friends</button>
-    </a>
+    <a href="/friends">🧑‍🤝‍🧑 Friends</a>
+
+    <br><br>
+
+    <a href="/requests">📨 Requests</a>
 
     <br><br>
 
@@ -174,6 +200,25 @@ def login():
     username = request.form["username"]
     password = request.form["password"]
 
+    # MIN LENGTH
+    if len(username) < 5:
+        return STYLE + """
+        <div class="card">
+        ❌ Username must be at least 5 letters
+        <br><br>
+        <a href="/">⬅ back</a>
+        </div>
+        """
+
+    if len(password) < 5:
+        return STYLE + """
+        <div class="card">
+        ❌ Password must be at least 5 letters
+        <br><br>
+        <a href="/">⬅ back</a>
+        </div>
+        """
+
     db.execute(
         "SELECT * FROM users WHERE username=?",
         (username,)
@@ -184,7 +229,14 @@ def login():
     if user:
 
         if user[1] != password:
-            return STYLE + "<div class='card'><h2>❌ Wrong password</h2></div>"
+
+            return STYLE + """
+            <div class="card">
+            ❌ Wrong password
+            <br><br>
+            <a href="/">⬅ back</a>
+            </div>
+            """
 
     else:
 
@@ -198,7 +250,14 @@ def login():
             conn.commit()
 
         except:
-            return STYLE + "<div class='card'><h2>❌ Username already exists</h2></div>"
+
+            return STYLE + """
+            <div class="card">
+            ❌ Username already exists
+            <br><br>
+            <a href="/">⬅ back</a>
+            </div>
+            """
 
     response = make_response(redirect("/"))
 
@@ -226,11 +285,13 @@ def find():
     results = db.fetchall()
 
     if not results:
+
         return STYLE + """
         <div class="card">
-            <h2>❌ No users found</h2>
 
-            <a href="/">⬅ back</a>
+        <h2>❌ No users found</h2>
+
+        <a href="/">⬅ back</a>
 
         </div>
         """
@@ -244,14 +305,15 @@ def find():
         if username != me:
 
             html += f"""
+
             <div class="msg">
 
-                👤 {username}
-<a href="/add_friend/{username}">
-    <button style="background:#5865f2; border:none; color:white; padding:8px 12px; border-radius:10px;">
-        Add Friend
-    </button>
-</a>
+            👤 {username}
+
+            <a href="/add_friend/{username}">
+                <button>Add Friend</button>
+            </a>
+
             </div>
             """
 
@@ -259,17 +321,15 @@ def find():
 
     return html
 
-# ---------- ADD FRIEND ----------
+
+# ---------- SEND REQUEST ----------
 @app.route("/add_friend/<username>")
 def add_friend(username):
 
     me = current_user()
 
-    if not me:
-        return redirect("/")
-
     db.execute(
-        "SELECT * FROM friends WHERE user1=? AND user2=?",
+        "SELECT * FROM requests WHERE sender=? AND receiver=?",
         (me, username)
     )
 
@@ -278,11 +338,77 @@ def add_friend(username):
     if not exists:
 
         db.execute(
-            "INSERT INTO friends VALUES (?, ?)",
+            "INSERT INTO requests VALUES (?, ?)",
             (me, username)
         )
 
         conn.commit()
+
+    return redirect("/")
+
+
+# ---------- REQUESTS ----------
+@app.route("/requests")
+def requests_page():
+
+    me = current_user()
+
+    db.execute(
+        "SELECT sender FROM requests WHERE receiver=?",
+        (me,)
+    )
+
+    requests = db.fetchall()
+
+    html = STYLE + '<div class="card"><h1>📨 Friend Requests</h1>'
+
+    if not requests:
+        html += "<p>No requests</p>"
+
+    for r in requests:
+
+        sender = r[0]
+
+        html += f"""
+
+        <div class="msg">
+
+        👤 {sender}
+
+        <a href="/accept/{sender}">
+            <button>Accept</button>
+        </a>
+
+        </div>
+        """
+
+    html += '<br><a href="/">⬅ back</a></div>'
+
+    return html
+
+
+# ---------- ACCEPT ----------
+@app.route("/accept/<sender>")
+def accept(sender):
+
+    me = current_user()
+
+    db.execute(
+        "INSERT INTO friends VALUES (?, ?)",
+        (me, sender)
+    )
+
+    db.execute(
+        "INSERT INTO friends VALUES (?, ?)",
+        (sender, me)
+    )
+
+    db.execute(
+        "DELETE FROM requests WHERE sender=? AND receiver=?",
+        (sender, me)
+    )
+
+    conn.commit()
 
     return redirect("/friends")
 
@@ -292,9 +418,6 @@ def add_friend(username):
 def friends():
 
     me = current_user()
-
-    if not me:
-        return redirect("/")
 
     db.execute(
         "SELECT user2 FROM friends WHERE user1=?",
@@ -323,7 +446,7 @@ def friends():
         </div>
         """
 
-    html += '<br><a href="/">⬅ Back</a></div>'
+    html += '<br><a href="/">⬅ back</a></div>'
 
     return html
 
@@ -333,9 +456,6 @@ def friends():
 def chat():
 
     me = current_user()
-
-    if not me:
-        return redirect("/")
 
     target = request.args.get("to")
 
@@ -383,70 +503,3 @@ def chat():
     </div>
 
     <br>
-
-    <form action="/send" method="POST">
-
-        <input type="hidden" name="to" value="{target}">
-
-        <input name="msg" placeholder="message">
-
-        <button>Send</button>
-
-    </form>
-
-    <br>
-
-    <a href="/friends">⬅ Back</a>
-
-    </div>
-    """
-
-
-# ---------- SEND ----------
-@app.route("/send", methods=["POST"])
-def send():
-
-    me = current_user()
-
-    if not me:
-        return redirect("/")
-
-    target = request.form["to"]
-
-    msg = request.form["msg"]
-
-    if not msg:
-        return redirect(f"/chat?to={target}")
-
-    now = datetime.datetime.now().strftime("%H:%M")
-
-    db.execute(
-        "INSERT INTO messages VALUES (?, ?, ?, ?)",
-        (me, target, msg, now)
-    )
-
-    conn.commit()
-
-    return redirect(f"/chat?to={target}")
-
-
-# ---------- LOGOUT ----------
-@app.route("/logout")
-def logout():
-
-    response = make_response(redirect("/"))
-
-    response.set_cookie("user", "", expires=0)
-
-    return response
-
-
-# ---------- RUN ----------
-if __name__ == "__main__":
-
-    port = int(os.environ.get("PORT", 8000))
-
-    app.run(
-        host="0.0.0.0",
-        port=port
-    )
