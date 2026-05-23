@@ -506,7 +506,7 @@ def chat():
 
     <h1>💬 {target}</h1>
 
-    <div class="chat">
+    <div class="chat" id="chat">
 
     {html}
 
@@ -529,13 +529,61 @@ def chat():
 
     </div>
 
-    <script>
-    setInterval(() => {{
-        location.reload();
-    }}, 3000);
-    </script>
+   <script>
+
+async function updateChat(){
+
+    let response = await fetch("/messages?to={target}");
+
+    let text = await response.text();
+
+    document.getElementById("chat").innerHTML = text;
+}
+
+setInterval(updateChat, 2000);
+
+</script>
 
     """
+
+
+@app.route("/messages")
+def messages():
+
+    me = current_user()
+
+    target = request.args.get("to")
+
+    db.execute("""
+    SELECT sender, message, time
+    FROM messages
+    WHERE
+    (sender=? AND receiver=?)
+    OR
+    (sender=? AND receiver=?)
+    ORDER BY rowid
+    """, (me, target, target, me))
+
+    messages = db.fetchall()
+
+    html = ""
+
+    for sender, msg, time in messages:
+
+        html += f"""
+
+        <div class="msg">
+
+        <b>{sender}</b> [{time}]
+
+        <br><br>
+
+        {msg}
+
+        </div>
+        """
+
+    return html
 
 # ---------- SEND MESSAGE ----------
 @app.route("/send", methods=["POST"])
