@@ -463,6 +463,44 @@ def friends():
 
     return html
 
+    @app.route("/messages")
+def messages():
+
+    me = current_user()
+
+    target = request.args.get("to")
+
+    db.execute("""
+    SELECT sender, message, time
+    FROM messages
+    WHERE
+    (sender=? AND receiver=?)
+    OR
+    (sender=? AND receiver=?)
+    ORDER BY rowid
+    """, (me, target, target, me))
+
+    messages = db.fetchall()
+
+    html = ""
+
+    for sender, msg, time in messages:
+
+        html += f"""
+
+        <div class="msg">
+
+        <b>{sender}</b> [{time}]
+
+        <br><br>
+
+        {msg}
+
+        </div>
+        """
+
+    return html
+
 # ---------- CHAT ----------
 @app.route("/chat")
 def chat():
@@ -545,45 +583,6 @@ setInterval(updateChat, 2000);
 </script>
 
     """
-
-
-@app.route("/messages")
-def messages():
-
-    me = current_user()
-
-    target = request.args.get("to")
-
-    db.execute("""
-    SELECT sender, message, time
-    FROM messages
-    WHERE
-    (sender=? AND receiver=?)
-    OR
-    (sender=? AND receiver=?)
-    ORDER BY rowid
-    """, (me, target, target, me))
-
-    messages = db.fetchall()
-
-    html = ""
-
-    for sender, msg, time in messages:
-
-        html += f"""
-
-        <div class="msg">
-
-        <b>{sender}</b> [{time}]
-
-        <br><br>
-
-        {msg}
-
-        </div>
-        """
-
-    return html
 
 # ---------- SEND MESSAGE ----------
 @app.route("/send", methods=["POST"])
