@@ -268,7 +268,7 @@ def login():
         <br>
 
         <div style="color:#ff4d4d;">
-            ❌ {error}
+         {error}
         </div>
 
         </div>
