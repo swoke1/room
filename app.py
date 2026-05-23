@@ -200,80 +200,79 @@ def login():
     username = request.form["username"]
     password = request.form["password"]
 
+    error = ""
+
     if len(username) < 5:
+        error = "Username must be at least 5 letters"
 
-        return STYLE + """
-        <div class="card">
-
-        ❌ Username must be at least 5 letters
-
-        <br><br>
-
-        <a href="/">⬅ back</a>
-
-        </div>
-        """
-
-    if len(password) < 5:
-
-        return STYLE + """
-        <div class="card">
-
-        ❌ Password must be at least 5 letters
-
-        <br><br>
-
-        <a href="/">⬅ back</a>
-
-        </div>
-        """
-
-    db.execute(
-        "SELECT * FROM users WHERE username=?",
-        (username,)
-    )
-
-    user = db.fetchone()
-
-    if user:
-
-        if user[1] != password:
-
-            return STYLE + """
-            <div class="card">
-
-            ❌ Wrong password
-
-            <br><br>
-
-            <a href="/">⬅ back</a>
-
-            </div>
-            """
+    elif len(password) < 5:
+        error = "Password must be at least 5 letters"
 
     else:
 
-        try:
+        db.execute(
+            "SELECT * FROM users WHERE username=?",
+            (username,)
+        )
 
-            db.execute(
-                "INSERT INTO users VALUES (?, ?)",
-                (username, password)
-            )
+        user = db.fetchone()
 
-            conn.commit()
+        if user:
 
-        except:
+            if user[1] != password:
+                error = "Wrong password"
 
-            return STYLE + """
-            <div class="card">
-            ❌ Username already exists
+        else:
+
+            try:
+
+                db.execute(
+                    "INSERT INTO users VALUES (?, ?)",
+                    (username, password)
+                )
+
+                conn.commit()
+
+            except:
+                error = "Username already exists"
+
+    if error:
+
+        return STYLE + f"""
+        <div class="card">
+
+        <h1>💬 Messenger</h1>
+
+        <form action="/login" method="POST">
+
+            <input
+                name="username"
+                placeholder="username"
+                value="{username}"
+            >
 
             <br><br>
 
-            <a href="/">⬅ back</a>
+            <input
+        type="password"
+                name="password"
+                placeholder="password"
+            >
 
-            </div>
-            """
+            <br><br>
+
+            <button>Login / Register</button>
+
+        </form>
+
+        <br>
+
+        <div style="color:#ff4d4d;">
+            ❌ {error}
+        </div>
+
+        </div>
+        """
 
     response = make_response(redirect("/"))
 
@@ -336,7 +335,7 @@ def find():
 
     return html
 
-# ---------- SEND FRIEND REQUEST ----------
+# ---------- ADD FRIEND ----------
 @app.route("/add_friend/<username>")
 def add_friend(username):
 
@@ -399,7 +398,7 @@ def requests_page():
 
     return html
 
-# ---------- ACCEPT REQUEST ----------
+# ---------- ACCEPT ----------
 @app.route("/accept/<sender>")
 def accept(sender):
 
@@ -463,7 +462,8 @@ def friends():
 
     return html
 
-    @app.route("/messages")
+# ---------- MESSAGES ----------
+@app.route("/messages")
 def messages():
 
     me = current_user()
@@ -493,7 +493,6 @@ def messages():
         <b>{sender}</b> [{time}]
 
         <br><br>
-
         {msg}
 
         </div>
@@ -505,38 +504,7 @@ def messages():
 @app.route("/chat")
 def chat():
 
-    me = current_user()
-
     target = request.args.get("to")
-
-    db.execute("""
-    SELECT sender, message, time
-    FROM messages
-    WHERE
-    (sender=? AND receiver=?)
-    OR
-    (sender=? AND receiver=?)
-    ORDER BY rowid
-    """, (me, target, target, me))
-
-    messages = db.fetchall()
-
-    html = ""
-
-    for sender, msg, time in messages:
-
-        html += f"""
-
-        <div class="msg">
-
-        <b>{sender}</b> [{time}]
-
-        <br><br>
-
-        {msg}
-
-        </div>
-        """
 
     return STYLE + f"""
 
@@ -544,13 +512,10 @@ def chat():
 
     <h1>💬 {target}</h1>
 
-    <div class="chat" id="chat">
-
-    {html}
-
-    </div>
+    <div class="chat" id="chat"></div>
 
     <br>
+
     <form action="/send" method="POST">
 
         <input type="hidden" name="to" value="{target}">
@@ -567,24 +532,25 @@ def chat():
 
     </div>
 
-   <script>
+    <script>
 
-async function updateChat(){
+    async function updateChat() {{
 
-    let response = await fetch("/messages?to={target}");
+        let response = await fetch("/messages?to={target}");
 
-    let text = await response.text();
+        let text = await response.text();
 
-    document.getElementById("chat").innerHTML = text;
-}
+        document.getElementById("chat").innerHTML = text;
+    }}
 
-setInterval(updateChat, 2000);
+    updateChat();
 
-</script>
+    setInterval(updateChat, 2000);
 
+    </script>
     """
 
-# ---------- SEND MESSAGE ----------
+# ---------- SEND ----------
 @app.route("/send", methods=["POST"])
 def send():
 
@@ -594,7 +560,7 @@ def send():
 
     msg = request.form["msg"]
 
-    if not msg:
+    if msg.strip() == "":
         return redirect(f"/chat?to={target}")
 
     now = datetime.datetime.now().strftime("%H:%M")
